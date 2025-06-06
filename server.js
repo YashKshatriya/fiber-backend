@@ -5,69 +5,74 @@ const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const authRoutes = require("./routes/authRoute.js");
 
+// Load environment variables from .env
 dotenv.config();
 
 const app = express();
 
-// Middleware
+// Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// CORS configuration
+// CORS setup
 const corsOptions = {
     origin: [
-        'http://localhost:5173',
-        'https://fiber-frontend.onrender.com'
+        "http://localhost:5173",
+        "https://fiber-frontend.onrender.com",
+        "https://fiber-frontend.vercel.app"
     ],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
 };
 
 app.use(cors(corsOptions));
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use("/api/auth", authRoutes);
 
-// MongoDB Connection
+// MongoDB connection
 const connectDb = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
-        console.log('Connected to MongoDB');
+        const uri = process.env.MONGODB_URI;
+        if (!uri) {
+            throw new Error("Missing MONGODB_URI in environment variables");
+        }
+
+        await mongoose.connect(uri, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true
+        });
+
+        console.log("✅ Connected to MongoDB successfully");
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        console.error("❌ MongoDB connection error:", error.message);
         process.exit(1);
     }
 };
 
-const PORT = process.env.PORT || 8000;
-
-// Basic route
-app.get('/', (req, res) => {
-    res.send('API is running...');
+// Health check route
+app.get("/", (req, res) => {
+    res.send("✅ API is running...");
 });
 
-// Error handling middleware
+// Error handler
 app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500;
     res.status(statusCode).json({
         message: err.message,
-        stack: process.env.NODE_ENV === 'production' ? null : err.stack,
+        stack: process.env.NODE_ENV === "production" ? null : err.stack
     });
 });
 
-// Start server only after MongoDB connects
-const startServer = async () => {
-    try {
-        await connectDb();
-        app.listen(PORT, () => {
-            console.log(`Server is running at port ${PORT}`);
-        });
-    } catch (error) {
-        console.error('Failed to start server:', error);
-        process.exit(1);
-    }
-};
+// Start server after DB connection
+connectDb().then(() => {
+    const PORT = process.env.PORT || 8000;
+    app.listen(PORT, () => {
+        console.log(`🚀 Server is running at http://localhost:${PORT}`);
+    });
+});
 
-startServer();
+// Export for testing or deployment
+module.exports = app;
